@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+model User {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  password   String
+  role       String   // "user" ali "agent"
+  avatarPath String?
+
+  createdTickets  Ticket[] @relation("CreatedTickets")
+  assignedTickets Ticket[] @relation("AssignedTickets")
+  comments        TicketComment[]
+}
+
+model Ticket {
+  id          Int          @id @default(autoincrement())
+  title       String
+  description String
+  priority    String       // "low", "medium", "high"
+  status      TicketStatus @relation(fields: [statusId], references: [id])
+  statusId    Int
+  queue       TicketQueue  @relation(fields: [queueId], references: [id])
+  queueId     Int
+  createdBy   User         @relation("CreatedTickets", fields: [createdById], references: [id])
+  createdById Int
+  assignedTo  User?        @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  assignedToId Int?
+  dueAt       DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  comments TicketComment[]
+}
+
+model TicketStatus {
+  id      Int      @id @default(autoincrement())
+  name    String   // "Open", "In Progress", "Closed", "Waiting"
+  tickets Ticket[]
+}
+
+model TicketQueue {
+  id      Int      @id @default(autoincrement())
+  name    String   // "Telefonija", "Internet", "Oblak", ...
+  tickets Ticket[]
+}
+
+model TicketComment {
+  id        Int      @id @default(autoincrement())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId  Int
+  createdBy User     @relation(fields: [createdById], references: [id])
+  createdById Int
+  message   String
+  createdAt DateTime @default(now())
+}

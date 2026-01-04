@@ -5,63 +5,80 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
+
+generator db {
+  provider = "prisma-client-js"
+}
+
 model User {
-  id         Int      @id @default(autoincrement())
-  email      String   @unique
+  id         Int     @id @default(autoincrement())
+  email      String  @unique
   password   String
-  role       String   // "user" ali "agent"
+  role       String // "user" ali "agent"
   avatarPath String?
 
-  createdTickets  Ticket[] @relation("CreatedTickets")
-  assignedTickets Ticket[] @relation("AssignedTickets")
+  createdTickets  Ticket[]        @relation("CreatedTickets")
+  assignedTickets Ticket[]        @relation("AssignedTickets")
   comments        TicketComment[]
 }
 
 model Ticket {
-  id          Int          @id @default(autoincrement())
-  title       String
-  description String
-  priority    String       // "low", "medium", "high"
-  status      TicketStatus @relation(fields: [statusId], references: [id])
-  statusId    Int
-  queue       TicketQueue  @relation(fields: [queueId], references: [id])
-  queueId     Int
-  createdBy   User         @relation("CreatedTickets", fields: [createdById], references: [id])
-  createdById Int
-  assignedTo  User?        @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  id           Int          @id @default(autoincrement())
+  title        String
+  description  String
+  priority     String // "low", "medium", "high"
+  status       TicketStatus @relation(fields: [statusId], references: [id])
+  statusId     Int
+  queue        TicketQueue  @relation(fields: [queueId], references: [id])
+  queueId      Int
+  createdBy    User         @relation("CreatedTickets", fields: [createdById], references: [id])
+  createdById  Int
+  assignedTo   User?        @relation("AssignedTickets", fields: [assignedToId], references: [id])
   assignedToId Int?
-  dueAt       DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  dueAt        DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  slaBreached  Boolean      @default(false)
+  slaNotified  Boolean      @default(false)
 
-  comments TicketComment[]
+  comments   TicketComment[]
+  slaHistory SLAHistory[]
 }
 
 model TicketStatus {
   id      Int      @id @default(autoincrement())
-  name    String   // "Open", "In Progress", "Closed", "Waiting"
+  name    String // "Open", "In Progress", "Closed", "Waiting"
   tickets Ticket[]
 }
 
 model TicketQueue {
   id      Int      @id @default(autoincrement())
-  name    String   // "Telefonija", "Internet", "Oblak", ...
+  name    String // "Telefonija", "Internet", "Oblak", ...
   tickets Ticket[]
 }
 
 model TicketComment {
-  id        Int      @id @default(autoincrement())
-  ticket    Ticket   @relation(fields: [ticketId], references: [id])
-  ticketId  Int
-  createdBy User     @relation(fields: [createdById], references: [id])
+  id          Int      @id @default(autoincrement())
+  ticket      Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId    Int
+  createdBy   User     @relation(fields: [createdById], references: [id])
   createdById Int
-  message   String
-  createdAt DateTime @default(now())
+  message     String
+  createdAt   DateTime @default(now())
+}
+
+model SLAHistory {
+  id         Int       @id @default(autoincrement())
+  ticket     Ticket    @relation(fields: [ticketId], references: [id])
+  ticketId   Int
+  breachedAt DateTime
+  notifiedAt DateTime?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
 }

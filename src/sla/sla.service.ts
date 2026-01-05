@@ -30,9 +30,7 @@ export class SLAService {
       return false;
     }
 
-    const now = new Date();
-    const deadline = this.calculateSLADeadline(createdAt, priority);
-    return now > deadline;
+    return true;
   }
 
   /**
@@ -48,6 +46,7 @@ export class SLAService {
             not: 'Closed',
           },
         },
+        slaBreached: false,
       },
       include: {
         status: true,

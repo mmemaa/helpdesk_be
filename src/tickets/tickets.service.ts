@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 
@@ -7,7 +8,10 @@ import { UpdateTicketDto } from './dto/update-ticket.dto';
 export class TicketsService {
   private readonly HIGH_PRIORITY_SLA_MINUTES = 1;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificationService: NotificationService,
+  ) {}
 
   /**
    * Calculate SLA deadline based on priority
@@ -69,6 +73,22 @@ export class TicketsService {
         assignedTo: true,
       },
     });
+
+    // Create notification if ticket is assigned
+    if (ticket.assignedToId) {
+      try {
+        await this.notificationService.createNotification({
+          userId: ticket.assignedToId,
+          ticketId: ticket.id,
+          title: `New Ticket Assigned: ${ticket.title}`,
+          message: `You have been assigned a new ticket: ${ticket.title} (${ticket.priority} priority)`,
+          type: 'ticket_assigned',
+        });
+      } catch (error) {
+        // Log error but don't fail ticket creation
+        console.error('Failed to create notification:', error);
+      }
+    }
 
     // Calculate and add SLA deadline
     const slaDeadline = this.calculateSLADeadline(
@@ -261,6 +281,19 @@ export class TicketsService {
         assignedTo: true,
       },
     });
+
+    // Create notification for assigned user
+    try {
+      await this.notificationService.createNotification({
+        userId: userId,
+        ticketId: ticketId,
+        title: `Ticket Assigned: ${ticket.title}`,
+        message: `You have been assigned ticket: ${ticket.title} (${ticket.priority} priority)`,
+        type: 'ticket_assigned',
+      });
+    } catch (error) {
+      console.error('Failed to create assignment notification:', error);
+    }
 
     // Add SLA deadline
     const slaDeadline = this.calculateSLADeadline(

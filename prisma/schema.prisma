@@ -26,7 +26,6 @@ model User {
   createdTickets  Ticket[]        @relation("CreatedTickets")
   assignedTickets Ticket[]        @relation("AssignedTickets")
   comments        TicketComment[]
-  notifications   Notification[]
 }
 
 model Ticket {
@@ -48,9 +47,8 @@ model Ticket {
   slaBreached  Boolean      @default(false)
   slaNotified  Boolean      @default(false)
 
-  comments      TicketComment[]
-  slaHistory    SLAHistory[]
-  notifications Notification[]
+  comments   TicketComment[]
+  slaHistory SLAHistory[]
 }
 
 model TicketStatus {
@@ -83,18 +81,4 @@ model SLAHistory {
   notifiedAt DateTime?
   resolvedAt DateTime?
   createdAt  DateTime  @default(now())
-}
-
-model Notification {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
-  ticket    Ticket?  @relation(fields: [ticketId], references: [id])
-  ticketId  Int?
-  title     String
-  message   String
-  type      String   // "sla_breach", "ticket_created", "ticket_updated", "ticket_assigned", "comment_added"
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }

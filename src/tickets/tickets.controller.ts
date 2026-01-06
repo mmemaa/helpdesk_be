@@ -114,9 +114,10 @@ export class TicketsController {
    * DELETE /tickets/:id
    */
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   async remove(@Param('id') id: string) {
-    return await this.ticketsService.remove(+id);
+    await this.ticketsService.remove(+id);
+    return { message: 'Ticket successfully deleted' };
   }
 
   /**

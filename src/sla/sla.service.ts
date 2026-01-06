@@ -30,7 +30,10 @@ export class SLAService {
       return false;
     }
 
-    return true;
+    const deadline = this.calculateSLADeadline(createdAt, priority);
+    const now = new Date();
+
+    return now.getTime() > deadline.getTime();
   }
 
   /**

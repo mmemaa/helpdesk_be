@@ -153,7 +153,7 @@ export class SLAService {
       include: { status: true },
     });
 
-    if (!ticket || ticket.status.name === 'Closed') {
+    if (!ticket || ticket.status.name === 'Closed' || ticket.priority !== 'high') {
       return {
         isBreach: false,
         timeRemaining: 0,

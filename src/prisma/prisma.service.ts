@@ -12,7 +12,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     
     super({
       adapter,
-    });
+    } as any);
   }
 
   async onModuleInit() {
@@ -23,3 +23,4 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     await this.$disconnect();
   }
 }
+

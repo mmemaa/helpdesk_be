@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { Express } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
@@ -23,70 +24,106 @@ export class TicketsService {
   /**
    * Create a new ticket
    */
-  async create(createTicketDto: CreateTicketDto) {
-    // Validate that referenced entities exist
-    const queue = await this.prisma.ticketQueue.findUnique({
-      where: { id: createTicketDto.queueId },
-    });
+  async create(createTicketDto: CreateTicketDto, files?: Express.Multer.File[]) {
+    try {
+      // Validate that referenced entities exist
+      const queue = await (this.prisma as any).ticketQueue.findUnique({
+        where: { id: createTicketDto.queueId },
+      });
 
-    if (!queue) {
-      throw new NotFoundException(`Queue with ID ${createTicketDto.queueId} not found`);
-    }
+      if (!queue) {
+        throw new NotFoundException(`Queue with ID ${createTicketDto.queueId} not found`);
+      }
 
-    const status = await this.prisma.ticketStatus.findFirst({
-      where: { name: createTicketDto.status },
-    });
+      const status = await (this.prisma as any).ticketStatus.findFirst({
+        where: { name: createTicketDto.status },
+      });
 
-    if (!status) {
-      throw new NotFoundException(`Status "${createTicketDto.status}" not found`);
-    }
+      if (!status) {
+        throw new NotFoundException(`Status "${createTicketDto.status}" not found`);
+      }
 
-    const createdBy = await this.prisma.user.findUnique({
-      where: { id: createTicketDto.createdById },
-    });
+      const createdBy = await (this.prisma as any).user.findUnique({
+        where: { id: createTicketDto.createdById },
+      });
 
-    if (!createdBy) {
-      throw new NotFoundException(
-        `User with ID ${createTicketDto.createdById} not found`,
+      if (!createdBy) {
+        throw new NotFoundException(
+          `User with ID ${createTicketDto.createdById} not found`,
+        );
+      }
+
+      console.log('All validations passed, creating ticket...');
+
+      // Create ticket without attachments first
+      const ticket = await (this.prisma as any).ticket.create({
+        data: {
+          title: createTicketDto.title,
+          description: createTicketDto.description,
+          priority: createTicketDto.priority || 'medium',
+          statusId: status.id,
+          queueId: createTicketDto.queueId,
+          createdById: createTicketDto.createdById,
+          assignedToId: createTicketDto.assignedToId,
+          dueAt: createTicketDto.dueAt ? new Date(createTicketDto.dueAt) : null,
+        },
+        include: {
+          status: true,
+          queue: true,
+          createdBy: true,
+          assignedTo: true,
+        },
+      });
+
+      console.log('Ticket created:', ticket.id);
+
+      // Add attachments if files were provided
+      const attachments: any[] = [];
+      if (files && files.length > 0) {
+        console.log('Processing', files.length, 'files...');
+        for (const file of files) {
+          try {
+            const attachment = await (this.prisma as any).ticketAttachment.create({
+              data: {
+                ticketId: ticket.id,
+                filename: file.filename,
+                originalName: file.originalname,
+                mimeType: file.mimetype,
+                size: file.size,
+                path: file.path,
+              },
+            });
+            console.log('Attachment saved:', attachment.id);
+            attachments.push(attachment);
+          } catch (error) {
+            console.error('Error saving attachment:', error);
+            throw error;
+          }
+        }
+      }
+
+      // Calculate and add SLA deadline
+      const slaDeadline = this.calculateSLADeadline(
+        ticket.createdAt,
+        ticket.priority,
       );
+
+      return {
+        ...ticket,
+        attachments,
+        slaDeadline,
+      };
+    } catch (error) {
+      console.error('Error in create method:', error);
+      throw error;
     }
-
-    const ticket = await this.prisma.ticket.create({
-      data: {
-        title: createTicketDto.title,
-        description: createTicketDto.description,
-        priority: createTicketDto.priority || 'medium',
-        statusId: status.id,
-        queueId: createTicketDto.queueId,
-        createdById: createTicketDto.createdById,
-        assignedToId: createTicketDto.assignedToId,
-        dueAt: createTicketDto.dueAt ? new Date(createTicketDto.dueAt) : null,
-      },
-      include: {
-        status: true,
-        queue: true,
-        createdBy: true,
-        assignedTo: true,
-      },
-    });
-
-    // Calculate and add SLA deadline
-    const slaDeadline = this.calculateSLADeadline(
-      ticket.createdAt,
-      ticket.priority,
-    );
-
-    return {
-      ...ticket,
-      slaDeadline,
-    };
   }
 
   /**
    * Get all tickets
    */
   async findAll() {
-    const tickets = await this.prisma.ticket.findMany({
+    const tickets = await (this.prisma as any).ticket.findMany({
       include: {
         status: true,
         queue: true,
@@ -111,7 +148,7 @@ export class TicketsService {
    * Get all available statuses
    */
   async getStatuses() {
-    return await this.prisma.ticketStatus.findMany({
+    return await (this.prisma as any).ticketStatus.findMany({
       orderBy: { name: 'asc' },
     });
   }
@@ -120,7 +157,7 @@ export class TicketsService {
    * Get a single ticket by ID
    */
   async findOne(id: number) {
-    const ticket = await this.prisma.ticket.findUnique({
+    const ticket = await (this.prisma as any).ticket.findUnique({
       where: { id },
       include: {
         status: true,
@@ -138,6 +175,11 @@ export class TicketsService {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
     }
 
+    // Fetch attachments separately
+    const attachments = await (this.prisma as any).ticketAttachment.findMany({
+      where: { ticketId: id },
+    });
+
     // Calculate and add SLA deadline
     const slaDeadline = this.calculateSLADeadline(
       ticket.createdAt,
@@ -146,6 +188,7 @@ export class TicketsService {
 
     return {
       ...ticket,
+      attachments,
       slaDeadline,
     };
   }
@@ -160,7 +203,7 @@ export class TicketsService {
     // If status is provided, convert status name to statusId
     let statusId: number | undefined;
     if (updateTicketDto.status) {
-      const status = await this.prisma.ticketStatus.findFirst({
+      const status = await (this.prisma as any).ticketStatus.findFirst({
         where: { name: updateTicketDto.status },
       });
       if (!status) {
@@ -169,7 +212,7 @@ export class TicketsService {
       statusId = status.id;
     }
 
-    const ticket = await this.prisma.ticket.update({
+    const ticket = await (this.prisma as any).ticket.update({
       where: { id },
       data: {
         ...(updateTicketDto.title && { title: updateTicketDto.title }),
@@ -208,7 +251,7 @@ export class TicketsService {
    * Update ticket status
    */
   async updateStatus(id: number, statusName: string) {
-    const status = await this.prisma.ticketStatus.findFirst({
+    const status = await (this.prisma as any).ticketStatus.findFirst({
       where: { name: statusName },
     });
 
@@ -216,7 +259,7 @@ export class TicketsService {
       throw new NotFoundException(`Status "${statusName}" not found`);
     }
 
-    const ticket = await this.prisma.ticket.update({
+    const ticket = await (this.prisma as any).ticket.update({
       where: { id },
       data: { statusId: status.id },
       include: {
@@ -243,7 +286,7 @@ export class TicketsService {
    * Assign ticket to a user
    */
   async assignTicket(ticketId: number, userId: number) {
-    const user = await this.prisma.user.findUnique({
+    const user = await (this.prisma as any).user.findUnique({
       where: { id: userId },
     });
 
@@ -251,7 +294,7 @@ export class TicketsService {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    const ticket = await this.prisma.ticket.update({
+    const ticket = await (this.prisma as any).ticket.update({
       where: { id: ticketId },
       data: { assignedToId: userId },
       include: {
@@ -281,17 +324,17 @@ export class TicketsService {
     await this.findOne(id);
 
     // Delete related SLA history
-    await this.prisma.sLAHistory.deleteMany({
+    await (this.prisma as any).sLAHistory.deleteMany({
       where: { ticketId: id },
     });
 
     // Delete related comments
-    await this.prisma.ticketComment.deleteMany({
+    await (this.prisma as any).ticketComment.deleteMany({
       where: { ticketId: id },
     });
 
     // Delete ticket
-    return await this.prisma.ticket.delete({
+    return await (this.prisma as any).ticket.delete({
       where: { id },
     });
   }
@@ -300,7 +343,7 @@ export class TicketsService {
    * Get all tickets with SLA breaches
    */
   async getBreachedTickets() {
-    return await this.prisma.ticket.findMany({
+    return await (this.prisma as any).ticket.findMany({
       where: {
         slaBreached: true,
         status: {

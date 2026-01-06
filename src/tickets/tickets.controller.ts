@@ -8,7 +8,15 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  UploadedFiles,
+  UseInterceptors,
+  Req,
+  BadRequestException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import type { Express } from 'express';
 import { TicketsService } from './tickets.service';
 import { SLAService } from '../sla/sla.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
@@ -22,13 +30,75 @@ export class TicketsController {
   ) {}
 
   /**
-   * Create a new ticket
+   * Create a new ticket with optional file attachments
    * POST /tickets
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createTicketDto: CreateTicketDto) {
-    return await this.ticketsService.create(createTicketDto);
+  @UseInterceptors(
+    FilesInterceptor('attachments', 5, {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const uploadDir = join(process.cwd(), 'uploads');
+          // Create directory if it doesn't exist
+          const fs = require('fs');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          cb(null, uploadDir);
+        },
+        filename: (req, file, cb) => {
+          const randomName = Array(32)
+            .fill(null)
+            .map(() => Math.round(Math.random() * 16).toString(16))
+            .join('');
+          cb(null, `${randomName}${extname(file.originalname)}`);
+        },
+      }),
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+      },
+      fileFilter: (req, file, cb) => {
+        // Accept all files
+        cb(null, true);
+      },
+    }),
+  )
+  async create(
+    @Req() req: any,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    try {
+      // Extract form fields from request body
+      const body = req.body;
+      
+      console.log('Received form data:', body);
+      console.log('Received files:', files?.length ?? 0);
+      
+      // Create DTO from form fields
+      const createTicketDto: CreateTicketDto = {
+        title: body.title,
+        description: body.description,
+        priority: body.priority,
+        status: body.status,
+        queueId: Number(body.queueId),
+        createdById: Number(body.createdById),
+        assignedToId: body.assignedToId ? Number(body.assignedToId) : undefined,
+        dueAt: body.dueAt ? new Date(body.dueAt) : undefined,
+      };
+
+      // Validate required fields
+      if (!createTicketDto.title || !createTicketDto.description || !createTicketDto.status || !createTicketDto.queueId || !createTicketDto.createdById) {
+        throw new BadRequestException('Missing required fields: title, description, status, queueId, createdById');
+      }
+
+      console.log('Creating ticket with DTO:', createTicketDto);
+      
+      return await this.ticketsService.create(createTicketDto, files);
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+      throw error;
+    }
   }
 
   /**

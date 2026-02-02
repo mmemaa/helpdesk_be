@@ -123,6 +123,36 @@ export class TicketsController {
   }
 
   /**
+   * Get count of tickets with SLA breaches
+   * GET /tickets/sla/breached/count
+   */
+  @Get('sla/breached/count')
+  async getBreachedTicketsCount() {
+    const count = await this.ticketsService.getBreachedTicketsCount();
+    return { count };
+  }
+
+  /**
+   * Get high-priority tickets with SLA breaches
+   * GET /tickets/sla/breached
+   */
+  @Get('sla/breached')
+  async getBreachedTickets() {
+    return await this.ticketsService.getBreachedTickets();
+  }
+
+  /**
+   * Manually trigger SLA monitoring
+   * POST /tickets/sla/monitor
+   * (For testing/admin purposes)
+   */
+  @Post('sla/monitor')
+  async monitorSLABreaches() {
+    await this.slaService.monitorSLABreaches();
+    return { message: 'SLA monitoring completed' };
+  }
+
+  /**
    * Get a specific ticket by ID
    * GET /tickets/:id
    */
@@ -188,25 +218,5 @@ export class TicketsController {
   async remove(@Param('id') id: string) {
     await this.ticketsService.remove(+id);
     return { message: 'Ticket successfully deleted' };
-  }
-
-  /**
-   * Get high-priority tickets with SLA breaches
-   * GET /tickets/sla/breached
-   */
-  @Get('sla/breached')
-  async getBreachedTickets() {
-    return await this.ticketsService.getBreachedTickets();
-  }
-
-  /**
-   * Manually trigger SLA monitoring
-   * POST /tickets/sla/monitor
-   * (For testing/admin purposes)
-   */
-  @Post('sla/monitor')
-  async monitorSLABreaches() {
-    await this.slaService.monitorSLABreaches();
-    return { message: 'SLA monitoring completed' };
   }
 }

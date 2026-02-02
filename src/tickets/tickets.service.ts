@@ -360,4 +360,18 @@ export class TicketsService {
       orderBy: { createdAt: 'asc' },
     });
   }
+
+  /**
+   * Get count of tickets with SLA breaches
+   */
+  async getBreachedTicketsCount() {
+    return await (this.prisma as any).ticket.count({
+      where: {
+        slaBreached: true,
+        status: {
+          name: { not: 'Closed' },
+        },
+      },
+    });
+  }
 }

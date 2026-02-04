@@ -197,12 +197,27 @@ export class TicketsService {
    * Update a ticket
    */
   async update(id: number, updateTicketDto: UpdateTicketDto) {
+    console.log(`[SERVICE] Starting update for ticket ${id}`, updateTicketDto);
+    
     // Verify ticket exists
     await this.findOne(id);
+    console.log(`[SERVICE] Ticket ${id} exists`);
 
-    // If status is provided, convert status name to statusId
+    // Handle status - can come as statusId (number) or status (string name)
     let statusId: number | undefined;
-    if (updateTicketDto.status) {
+    if (updateTicketDto.statusId) {
+      // Direct statusId provided
+      console.log(`[SERVICE] Looking up status by ID: ${updateTicketDto.statusId}`);
+      const status = await (this.prisma as any).ticketStatus.findUnique({
+        where: { id: updateTicketDto.statusId },
+      });
+      if (!status) {
+        throw new NotFoundException(`Status with ID ${updateTicketDto.statusId} not found`);
+      }
+      statusId = updateTicketDto.statusId;
+    } else if (updateTicketDto.status) {
+      // Status name provided - look it up
+      console.log(`[SERVICE] Looking up status by name: ${updateTicketDto.status}`);
       const status = await (this.prisma as any).ticketStatus.findFirst({
         where: { name: updateTicketDto.status },
       });
@@ -212,21 +227,21 @@ export class TicketsService {
       statusId = status.id;
     }
 
+    const updateData: any = {};
+    
+    if (updateTicketDto.title) updateData.title = updateTicketDto.title;
+    if (updateTicketDto.description) updateData.description = updateTicketDto.description;
+    if (updateTicketDto.priority) updateData.priority = updateTicketDto.priority;
+    if (statusId) updateData.statusId = statusId;
+    if (updateTicketDto.queueId) updateData.queueId = updateTicketDto.queueId;
+    if (updateTicketDto.assignedToId) updateData.assignedToId = updateTicketDto.assignedToId;
+    if (updateTicketDto.dueAt) updateData.dueAt = updateTicketDto.dueAt;
+
+    console.log(`[SERVICE] Update data:`, updateData);
+
     const ticket = await (this.prisma as any).ticket.update({
       where: { id },
-      data: {
-        ...(updateTicketDto.title && { title: updateTicketDto.title }),
-        ...(updateTicketDto.description && {
-          description: updateTicketDto.description,
-        }),
-        ...(updateTicketDto.priority && { priority: updateTicketDto.priority }),
-        ...(statusId && { statusId }),
-        ...(updateTicketDto.queueId && { queueId: updateTicketDto.queueId }),
-        ...(updateTicketDto.assignedToId && {
-          assignedToId: updateTicketDto.assignedToId,
-        }),
-        ...(updateTicketDto.dueAt && { dueAt: updateTicketDto.dueAt }),
-      },
+      data: updateData,
       include: {
         status: true,
         queue: true,
@@ -234,6 +249,7 @@ export class TicketsService {
         assignedTo: true,
       },
     });
+    console.log(`[SERVICE] Ticket updated successfully`);
 
     // Add SLA deadline
     const slaDeadline = this.calculateSLADeadline(

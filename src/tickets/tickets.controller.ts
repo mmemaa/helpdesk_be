@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   Req,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -179,7 +180,18 @@ export class TicketsController {
     @Param('id') id: string,
     @Body() updateTicketDto: UpdateTicketDto,
   ) {
-    return await this.ticketsService.update(+id, updateTicketDto);
+    try {
+      console.log(`[UPDATE] Updating ticket ${id} with:`, updateTicketDto);
+      const result = await this.ticketsService.update(+id, updateTicketDto);
+      console.log(`[UPDATE] Successfully updated ticket ${id}`);
+      return result;
+    } catch (error) {
+      console.error(`[UPDATE ERROR] Ticket ${id}:`, error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(error?.message || 'Failed to update ticket');
+    }
   }
 
   /**
